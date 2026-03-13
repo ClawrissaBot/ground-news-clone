@@ -14,6 +14,34 @@ export function getStories(limit = 50, offset = 0): StoryWithArticles[] {
   return clusters.map(c => enrichCluster(db, c));
 }
 
+export function getTrendingStories(period: 'day' | 'week' | 'month' = 'day', limit = 10): StoryWithArticles[] {
+  const db = getDb();
+  const intervals: Record<string, string> = {
+    day: '-1 day',
+    week: '-7 days',
+    month: '-30 days',
+  };
+
+  const clusters = db.prepare(`
+    SELECT c.*, COUNT(DISTINCT a.source_id) as unique_sources
+    FROM clusters c
+    JOIN articles a ON a.cluster_id = c.id
+    WHERE c.article_count > 1
+      AND a.published_at >= datetime('now', ?)
+    GROUP BY c.id
+    ORDER BY unique_sources DESC, c.article_count DESC
+    LIMIT ?
+  `).all(intervals[period], limit) as any[];
+
+  return clusters.map(c => enrichCluster(db, c));
+}
+
+export function getStoriesCount(): number {
+  const db = getDb();
+  const row = db.prepare('SELECT COUNT(*) as cnt FROM clusters WHERE article_count > 0').get() as any;
+  return row?.cnt || 0;
+}
+
 export function getStory(id: number): StoryWithArticles | null {
   const db = getDb();
   const cluster = db.prepare('SELECT * FROM clusters WHERE id = ?').get(id) as any;
