@@ -37,10 +37,10 @@ export const SOURCES: SourceData[] = [
 
   // CENTER
   { name: 'Associated Press', domain: 'apnews.com', bias: 'CENTER', factual: 'VERY HIGH', country: 'US', rss_url: 'https://feedx.net/rss/ap.xml' },
-  { name: 'Reuters', domain: 'reuters.com', bias: 'CENTER', factual: 'VERY HIGH', country: 'UK', rss_url: 'https://feedx.net/rss/reuters.xml' },
+  { name: 'Reuters', domain: 'reuters.com', bias: 'CENTER', factual: 'VERY HIGH', country: 'UK', rss_url: 'https://news.google.com/rss/search?q=site:reuters.com+when:1d&hl=en-US&gl=US&ceid=US:en' },
   { name: 'The Hill', domain: 'thehill.com', bias: 'CENTER', factual: 'HIGH', country: 'US', rss_url: 'https://thehill.com/feed/' },
   { name: 'Axios', domain: 'axios.com', bias: 'CENTER', factual: 'HIGH', country: 'US', rss_url: 'https://api.axios.com/feed/' },
-  { name: 'Ground News', domain: 'ground.news', bias: 'CENTER', factual: 'HIGH', country: 'CA', rss_url: 'https://ground.news/rss' },
+  { name: 'Christian Science Monitor', domain: 'csmonitor.com', bias: 'CENTER', factual: 'VERY HIGH', country: 'US', rss_url: 'https://rss.csmonitor.com/feeds/csm' },
 
   // RIGHT-CENTER
   { name: 'The Wall Street Journal', domain: 'wsj.com', bias: 'RIGHT-CENTER', factual: 'HIGH', country: 'US', rss_url: 'https://feeds.a.dj.com/rss/RSSWorldNews.xml' },
