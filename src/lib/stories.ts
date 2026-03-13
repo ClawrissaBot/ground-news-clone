@@ -1,20 +1,25 @@
 import { getDb, type StoryWithArticles } from './db';
 import { BIAS_ORDER } from './bias';
 
-export function getStories(limit = 50, offset = 0): StoryWithArticles[] {
+export function getStories(limit = 50, offset = 0, category?: string): StoryWithArticles[] {
   const db = getDb();
 
-  const clusters = db.prepare(`
-    SELECT * FROM clusters
-    WHERE article_count > 0
-    ORDER BY updated_at DESC
-    LIMIT ? OFFSET ?
-  `).all(limit, offset) as any[];
+  let query = 'SELECT * FROM clusters WHERE article_count > 0';
+  const params: any[] = [];
 
+  if (category && category !== 'all') {
+    query += ' AND category = ?';
+    params.push(category);
+  }
+
+  query += ' ORDER BY updated_at DESC LIMIT ? OFFSET ?';
+  params.push(limit, offset);
+
+  const clusters = db.prepare(query).all(...params) as any[];
   return clusters.map(c => enrichCluster(db, c));
 }
 
-export function getTrendingStories(period: 'day' | 'week' | 'month' = 'day', limit = 10): StoryWithArticles[] {
+export function getTrendingStories(period: 'day' | 'week' | 'month' = 'day', limit = 10, category?: string): StoryWithArticles[] {
   const db = getDb();
   const intervals: Record<string, string> = {
     day: '-1 day',
@@ -22,24 +27,50 @@ export function getTrendingStories(period: 'day' | 'week' | 'month' = 'day', lim
     month: '-30 days',
   };
 
-  const clusters = db.prepare(`
+  let query = `
     SELECT c.*, COUNT(DISTINCT a.source_id) as unique_sources
     FROM clusters c
     JOIN articles a ON a.cluster_id = c.id
     WHERE c.article_count > 1
       AND a.published_at >= datetime('now', ?)
-    GROUP BY c.id
-    ORDER BY unique_sources DESC, c.article_count DESC
-    LIMIT ?
-  `).all(intervals[period], limit) as any[];
+  `;
+  const params: any[] = [intervals[period]];
 
+  if (category && category !== 'all') {
+    query += ' AND c.category = ?';
+    params.push(category);
+  }
+
+  query += ' GROUP BY c.id ORDER BY unique_sources DESC, c.article_count DESC LIMIT ?';
+  params.push(limit);
+
+  const clusters = db.prepare(query).all(...params) as any[];
   return clusters.map(c => enrichCluster(db, c));
 }
 
-export function getStoriesCount(): number {
+export function getStoriesCount(category?: string): number {
   const db = getDb();
+  if (category && category !== 'all') {
+    const row = db.prepare('SELECT COUNT(*) as cnt FROM clusters WHERE article_count > 0 AND category = ?').get(category) as any;
+    return row?.cnt || 0;
+  }
   const row = db.prepare('SELECT COUNT(*) as cnt FROM clusters WHERE article_count > 0').get() as any;
   return row?.cnt || 0;
+}
+
+export function getCategoryCounts(): Record<string, number> {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT category, COUNT(*) as cnt 
+    FROM clusters 
+    WHERE article_count > 0 
+    GROUP BY category 
+    ORDER BY cnt DESC
+  `).all() as { category: string; cnt: number }[];
+  
+  const counts: Record<string, number> = {};
+  for (const r of rows) counts[r.category] = r.cnt;
+  return counts;
 }
 
 export function getStory(id: number): StoryWithArticles | null {
@@ -51,7 +82,8 @@ export function getStory(id: number): StoryWithArticles | null {
 
 function enrichCluster(db: any, cluster: any): StoryWithArticles {
   const articles = db.prepare(`
-    SELECT a.*, s.name as source_name, s.bias as source_bias, s.factual as source_factual
+    SELECT a.*, a.category as article_category, a.tags,
+           s.name as source_name, s.bias as source_bias, s.factual as source_factual
     FROM articles a
     JOIN sources s ON a.source_id = s.id
     WHERE a.cluster_id = ?

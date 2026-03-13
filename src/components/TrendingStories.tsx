@@ -11,21 +11,23 @@ const PERIODS = [
   { key: 'month', label: 'This Month' },
 ] as const;
 
-export function TrendingStories() {
+export function TrendingStories({ category = 'all' }: { category?: string }) {
   const [period, setPeriod] = useState<'day' | 'week' | 'month'>('day');
   const [stories, setStories] = useState<StoryWithArticles[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/stories?trending=true&period=${period}&limit=6`)
+    const params = new URLSearchParams({ trending: 'true', period, limit: '6' });
+    if (category !== 'all') params.set('category', category);
+    fetch(`/api/stories?${params}`)
       .then(r => r.json())
       .then(data => {
         setStories(data.stories || []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [period]);
+  }, [period, category]);
 
   return (
     <section>

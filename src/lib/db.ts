@@ -42,17 +42,23 @@ function initSchema(db: Database.Database) {
       image_url TEXT,
       published_at DATETIME,
       fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      cluster_id INTEGER
+      cluster_id INTEGER,
+      category TEXT DEFAULT 'general',
+      tags TEXT DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS clusters (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
       summary TEXT,
+      category TEXT DEFAULT 'general',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       article_count INTEGER DEFAULT 0
     );
+
+    CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category);
+    CREATE INDEX IF NOT EXISTS idx_clusters_category ON clusters(category);
 
     CREATE INDEX IF NOT EXISTS idx_articles_cluster ON articles(cluster_id);
     CREATE INDEX IF NOT EXISTS idx_articles_source ON articles(source_id);

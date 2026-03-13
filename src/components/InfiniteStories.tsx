@@ -7,7 +7,7 @@ import type { StoryWithArticles } from '@/lib/db';
 
 const PAGE_SIZE = 20;
 
-export function InfiniteStories({ initial }: { initial: StoryWithArticles[] }) {
+export function InfiniteStories({ initial, category = 'all' }: { initial: StoryWithArticles[]; category?: string }) {
   const [stories, setStories] = useState<StoryWithArticles[]>(initial);
   const [offset, setOffset] = useState(initial.length);
   const [hasMore, setHasMore] = useState(true);
@@ -18,7 +18,9 @@ export function InfiniteStories({ initial }: { initial: StoryWithArticles[] }) {
     if (loading || !hasMore) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/stories?limit=${PAGE_SIZE}&offset=${offset}`);
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
+      if (category !== 'all') params.set('category', category);
+      const res = await fetch(`/api/stories?${params}`);
       const data = await res.json();
       if (data.stories && data.stories.length > 0) {
         setStories(prev => {
@@ -35,7 +37,7 @@ export function InfiniteStories({ initial }: { initial: StoryWithArticles[] }) {
       setHasMore(false);
     }
     setLoading(false);
-  }, [loading, hasMore, offset]);
+  }, [loading, hasMore, offset, category]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;

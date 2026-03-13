@@ -1,5 +1,6 @@
 import Parser from 'rss-parser';
 import { getDb, type Source } from './db';
+import { categorizeArticle } from './categorizer';
 
 const parser = new Parser({
   timeout: 15000,
@@ -15,8 +16,8 @@ export async function fetchFeedForSource(source: Source): Promise<number> {
   try {
     const feed = await parser.parseURL(source.rss_url);
     const insert = db.prepare(`
-      INSERT OR IGNORE INTO articles (source_id, title, url, description, author, image_url, published_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT OR IGNORE INTO articles (source_id, title, url, description, author, image_url, published_at, category, tags)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     let count = 0;
@@ -27,6 +28,8 @@ export async function fetchFeedForSource(source: Source): Promise<number> {
         const imageUrl = item.enclosure?.url || extractImageFromContent(item.content || '') || null;
         const pubDate = item.pubDate ? new Date(item.pubDate).toISOString() : null;
 
+        const { category, tags } = categorizeArticle(item.title, desc, item.link);
+
         const result = insert.run(
           source.id,
           item.title.trim(),
@@ -34,7 +37,9 @@ export async function fetchFeedForSource(source: Source): Promise<number> {
           desc,
           item.creator || item.author || null,
           imageUrl,
-          pubDate
+          pubDate,
+          category,
+          tags.join(',')
         );
         if (result.changes > 0) count++;
       }

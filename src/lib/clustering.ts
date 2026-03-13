@@ -53,18 +53,18 @@ export function clusterArticles(): number {
 
   // Get unclustered articles from last 3 days
   const articles = db.prepare(`
-    SELECT id, title, description FROM articles
+    SELECT id, title, description, category FROM articles
     WHERE cluster_id IS NULL
     AND published_at > datetime('now', '-3 days')
     ORDER BY published_at DESC
-  `).all() as Pick<Article, 'id' | 'title' | 'description'>[];
+  `).all() as (Pick<Article, 'id' | 'title' | 'description'> & { category: string })[];
 
   if (articles.length === 0) return 0;
 
   // Build TF vectors
   const vectors = articles.map(a => {
     const text = `${a.title} ${a.title} ${a.description || ''}`; // Title weighted 2x
-    return { id: a.id, title: a.title, tf: termFrequency(tokenize(text)) };
+    return { id: a.id, title: a.title, category: a.category || 'general', tf: termFrequency(tokenize(text)) };
   });
 
   // Also get existing clusters (recent) to potentially merge into
@@ -82,10 +82,14 @@ export function clusterArticles(): number {
   }));
 
   const updateArticleCluster = db.prepare('UPDATE articles SET cluster_id = ? WHERE id = ?');
-  const createCluster = db.prepare('INSERT INTO clusters (title) VALUES (?)');
-  const updateClusterCount = db.prepare(`
+  const createCluster = db.prepare('INSERT INTO clusters (title, category) VALUES (?, ?)');
+  const updateClusterMeta = db.prepare(`
     UPDATE clusters SET
       article_count = (SELECT COUNT(*) FROM articles WHERE cluster_id = clusters.id),
+      category = COALESCE(
+        (SELECT category FROM articles WHERE cluster_id = clusters.id GROUP BY category ORDER BY COUNT(*) DESC LIMIT 1),
+        'general'
+      ),
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `);
@@ -106,7 +110,7 @@ export function clusterArticles(): number {
 
       if (bestMatch) {
         updateArticleCluster.run(bestMatch.clusterId, vec.id);
-        updateClusterCount.run(bestMatch.clusterId);
+        updateClusterMeta.run(bestMatch.clusterId);
       } else {
         // Check against other unclustered articles in this batch
         let foundPeer = false;
@@ -115,10 +119,10 @@ export function clusterArticles(): number {
           const score = cosineSimilarity(vec.tf, other.tf);
           if (score > SIMILARITY_THRESHOLD) {
             // Create new cluster
-            const result = createCluster.run(vec.title);
+            const result = createCluster.run(vec.title, vec.category);
             const clusterId = result.lastInsertRowid as number;
             updateArticleCluster.run(clusterId, vec.id);
-            updateClusterCount.run(clusterId);
+            updateClusterMeta.run(clusterId);
             clusterVectors.push({ clusterId, tf: vec.tf });
             foundPeer = true;
             break;
@@ -127,10 +131,10 @@ export function clusterArticles(): number {
 
         if (!foundPeer) {
           // Singleton cluster
-          const result = createCluster.run(vec.title);
+          const result = createCluster.run(vec.title, vec.category);
           const clusterId = result.lastInsertRowid as number;
           updateArticleCluster.run(clusterId, vec.id);
-          updateClusterCount.run(clusterId);
+          updateClusterMeta.run(clusterId);
           clusterVectors.push({ clusterId, tf: vec.tf });
         }
       }
